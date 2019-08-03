@@ -1,0 +1,390 @@
+Note: vgl naming with Go grammar (https://golang.org/ref/spec)
+Things to consider:
+• https://google.github.io/styleguide/cppguide.html
+• https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines
+• http://www.stroustrup.com/C++11FAQ.html
+• Go Syntax guidelines
+• My own experiences from work (e.g. prefer return value to output param via reference; see slack von mir und pawel am 28.03.2018)
+• My old coding style
+
+header_file_structure = [file_header] EL include_guards_begin EL includes EL top_level_decl* EL incude_guards_end EL .  # should end with empty line
+
+EL = empty line .
+
+file_header = comment* .
+comment = line_comment | block_comment | doxygen_comment.
+line_comment = check Go grammar .
+block_comment = check Go grammar .
+doxygen_comment = ?
+
+include_guards_begin = "#ifndef" include_guard_name EL "#define" include_guard_name .
+include_guards_end = "#endif" .
+include_guard_name = identifier .
+
+includes = include* .
+include = "#include" (system_include | local_include) .     #check naming -> how are <> and "" includes really called?
+system_include = "<" include_file_name ">" .
+local_include = """ include_file_name """ .                 #check how to represent literal " correctly!
+include_file_name = not identifier because of possible "/" -> compare with imports of go!
+
+top_level_decl = namespace_decl | class_decl | function_decl | variable_decl .
+
+namespace_decl = ?
+Notes on namespace declarations:
+* think about namespace naming (should they start with an lowercase or uppercase letter)
+    - namespace names should begin with an lowercase letter to be able to distinguish:
+        preconditions::checkSomeCondition()   -> due to lowercase name it is clear that checkSomeCondition() is a function from a namespace called preconditions
+        Preconditions::checkSomeCondition()   -> due to uppercase name it is clear that checkSomeCondition() is a static method of a class called Preconditions
+        + this also confirms to our company convention (e.g. util::, varnish::, ...)
+* think about multiple following namespace decls (maybe put space between { and namespace like "{ namespace"):
+    namespace A { namespace B { namespace C {
+        ...
+    }}}
+    - preferred because:
+        + equivalent to how it is done on https://en.cppreference.com/w/cpp/language/namespace under "8) nested namespace definition:"
+        + conforms to how we do it in our company 
+        + conforms more to how you write it when you use it (nebeneinander, e.g. bli::bla:blup::someFunction())
+        + untereinander looks strange
+    
+    or
+    
+    namespace bli {
+    namespace bla {
+    namespace blup {
+        ...
+    }}}
+    
+* no indent in namespace!
+namespace llvm {
+class PROL16Subtarget;	                    -> no indent
+
+namespace PROL16ISD {
+enum NodeType : unsigned {                  -> no indent
+    FIRST_NUMBER = ISD::BUILTIN_OP_END,
+
+    /// COMP - Compare instruction
+    COMP,
+};
+}
+
+class PROL16TargetLowering final : public TargetLowering {  -> no indent
+};
+
+}
+    
+* empty line after namespace decl and before namespace ending "}" (always or only in certain cases (e.g. only for class decls))???
+    - always use an empty line after namespace begin and before namespace end
+        + I do it automatically for classes
+        + to be consistent and to not have special cases, do it also for other decls!
+        + it is like we do it in company
+        + looks better, more appealing, clearer, better structured, easier to visually distinguish and orient
+namespace PROL16 {
+                    // empty line
+class InstructionWriter final : private NonCopyable {
+};
+                    // empty line
+}
+
+class_decl = ?
+Notes on class declarations:
+* nested classes are possible
+* template classes
+* general class decl:
+    - no extra line for "{" -> "{" in the same line as class decl -> "K&R" style 
+    - no EL after "{"
+    - no EL after "public:"
+    - : surrounded by spaces (" : ")
+    - ordering of access modifier is public - protected - private
+    - no EL between last decl and "};"
+        class Foo [final] : public Base {
+        public:
+	        Foo();      // no empty line between "public:" and the first declaration
+                	    // empty line before next access modifier    
+	    protected:
+	        ...
+	                    // empty line before private modifier
+	    private:
+	        ...         // no empty line here before "};"
+	    };
+	        
+* ordering of member variables, member functions, and other declarations (using, typedef, friends, static_asserts, nested struct/class, ...)
+    - ordering should be the same in .h and .cpp file (when implementing the methods in the .cpp file, they should have the same method order as declared in the header!)
+    - put member variables before member functions
+        + this is java convention (https://www.oracle.com/technetwork/java/javase/documentation/codeconventions-141855.html#1852 and https://www.oracle.com/technetwork/java/javase/documentation/codeconventions-137946.html#182)
+        + constants before methods seems more meaningful than vice versa because this way you can see the constants immediately when you're looking at the class (nearly every class has methods but only some
+        have public member variables -> put them at the beginning because otherwise, when the class starts with methods and member variables are weiter unten so that they are not visible at first sight,
+        people may implicitly assume that the class has no public member variables because only few classes have). So people immediatly see that this class has constants or generally public members, which they
+        otherwise would not (at least not immediatly)
+        -> to be consistent with that, also put instance variables before methods in the private section of the class
+    - put class (static) variables before instance variables (according to https://www.oracle.com/technetwork/java/javase/documentation/codeconventions-141855.html#1852)
+    - put nested class/struct defs before using decls and typedefs if possible
+        + if the nested class/struct is a template class/struct, you can directly afterwards define a type of this template class/struct with a certain template argument.
+        class Foo {
+        public:
+            template <typename T>
+            struct SomeTemplateStruct {};
+            
+            using SomeTemplateStruct<int> SomeType;
+        };
+        
+        + all class/struct definitions are grouped at the beginning so you can see all struct/class definitions at once.
+        + defs of classes/structs at the beginning looks visually more logical/structured, appealing to me.
+        + only using decls and typedefs that are needed by the nested class should (and must) be declared before the nested class
+        
+    - put nested decls, using decls, and typedefs before the first member variable and member method so that the newly defined types can already be used there
+    - static methods before object methods
+        + to be consistent with member variables, where also statics come first
+        
+    - static methods before special member functions
+        + special member functions (e.g. ctor, dtor) are object methods and object methods come before class methods
+        + static functions are often factory functions that should be clearly visible to be able to immediatly determine, when you look at the class declaration,
+          that these methods are available and should be used to construct objects of this class
+        + I instinctively do it this way
+            
+    - put operators before other methods
+        + operators are special methods so they should be clearly visible before the other methods so that one can immediatly see that this class has these operators overloaded and thus available
+        + operator= comes immediatly after copy ctor -> to ensure that the operators are grouped together, they must come after operator=, which is before the other methods
+            
+    - Example:
+class Foo {
+public:
+    using decls and typedefs needed in the subsequent nested struct/class definitions
+
+    nested struct/class definitions
+    
+    using decls
+    typedefs
+    
+    constant (which is constant + static) member variables
+    static member variables
+    instance variables
+    
+    static public methods
+    
+    ctor
+    dtor
+    copy ctor
+    operator=
+    
+    operators
+    
+    non-static public methods
+    
+protected:
+    ...
+    
+private:
+    using decls and typedefs needed in the subsequent nested struct/class definitions
+
+    nested struct/class definitions
+    
+    using decls
+    typedefs
+    
+    constant (which is constant + static) member variables
+    static member variables
+    instance variables
+    
+    static private methods
+    
+    ctor
+    copy ctor
+    operator=
+    
+    non-static private methods
+};
+	        
+* consider modifiers like static, const, volatile, extern, override, final, virtual
+    - put override and final as last modifier:
+        + view it as "method_signature override" so that method_signature is overriden -> override after const and noexcept
+        + put noexcept after const because const is more common and frequently used
+            void someMethod() const override;
+            char const* what() const noexcept override;
+            
+    - override or virtual on subclass dtor? (check https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines)
+    - only one of virtual, override, and final on method decls (check https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines)
+    - use virtual when introducing new API (new method) and override when overriding a method
+    - use "final" by default if there is no obvious reason against it
+        + check with our company c++11 recommendations: the choice to be able to derive should be explicit
+        + final -> no virtual dtor needed -> final prevents mistakes like deriving from a class with no virtual dtor?
+        
+* use "default" on ctor/dtor, copy-ctor, operator=?
+        
+* prefer composition over inheritance
+    - vgl sqe
+    - use inheritance only when polymorphism is needed, not for code reuse
+        + for code reuse, composition is better (regarding testing, ?performance due to vtable?, ...)
+        
+* no global base class (like wiesingers Object)
+    - keep inheritance hierarchy flat
+    - unnecessary virtual calls, ctor & dtor calls
+    - no real benefit since deriving from it has to be stated explicit (not implicit like in Java) -> you can forget it (like a virtual dtor) as well
+    - only use virtual dtor when necessary
+    - there is simply no reason for a base class of all classes (no project I know of uses such a base class like Object)
+    
+* think about where to put initializer list
+    - consider long decls like "PROL16Subtarget::PROL16Subtarget(Triple const &targetTriple, std::string const &cpu, std::string const &featureString)"
+      where the initializer list doesn't fit on the same line -> put it in the next line but where (indented or not)? so that it can be good visually differentiated
+      from the ctor parameter list (which maybe needs also a line break due to many and long parameters) and the following function body!
+      
+PROL16Subtarget::PROL16Subtarget(Triple const &targetTriple, std::string const &cpu, std::string const &featureString,
+		TargetMachine const &targetMachine)
+: PROL16GenSubtargetInfo(targetTriple, cpu, featureString),
+  frameLowering(),
+  targetLowering(targetMachine) {}
+
+    - put the "{}" after the last initializer list statement if the function body is empty
+        + reason: if at any time a body needs to be added, you only need to put the closing brace "}" into the next line and you have the right style
+                  for function implementations (K&R style)
+                  
+PROL16TargetMachine::PROL16TargetMachine(Target const &target,
+										 Triple const &targetTriple,
+										 StringRef cpu,
+										 StringRef featureString,
+										 TargetOptions const &targetOptions,
+										 Optional<Reloc::Model> relocationModel,
+										 Optional<CodeModel::Model> codeModel,
+										 CodeGenOpt::Level optimizationLevel,
+										 bool jit)
+: LLVMTargetMachine(target, computeDataLayoutString(), targetTriple, cpu, featureString, targetOptions,         # line break in initializer list function call!
+		getEffectiveRelocationModel(relocationModel), getEffectiveCodeModel(codeModel), optimizationLevel),
+  subtarget(targetTriple, cpu, featureString, *this),
+  // FIXME PROL16: ELF probably doesn't fit for prol16
+  targetLoweringObjectFile(make_unique<TargetLoweringObjectFileELF>()) {
+	initAsmInfo();
+}
+
+    - think about how to handle line breaks in initializer list function calls so that it can be good visually differentiated
+
+function_decl = ?
+Notes on function declarations:
+* template functions
+* consider modifiers like static, const, volatile, extern, ...
+* general function decl:
+    - no extra line for "{" -> "{" in the same line as function decl -> "K&R" style
+    - no EL between "{" and first decl
+    - no EL between "}" and last decl
+	    bool someFunction(someParameter) {
+	        ...
+	    }
+
+variable_decl = ?
+Notes on variable declarations:
+* consider modifiers like static, const, volatile, extern, ...
+
+Other things to note:
+=====================
+variable and parameter decls:
+-----------------------------
+* pointer decls: put "*" next to the name like "int *pointer;"; reason: decls like "int* foo, bar;" are misleading
+* reference decls: put "&" next to the name like "std::string &str"; reason: consistency with pointer decl (references are more or less pointers) and probably the same misleading phenomenon ("int& foo, bar")
+* const decls, write them so that one can easily read the decl from right to left: 
+    - put "const" after the type like "int const foo"
+    - const pointer decls "int const * const pointer"
+    - const ref decls "std::string const &str"
+    
+function decls:
+---------------
+* pointer and ref return types: put "*" and "&" to the type like (int* someFunction(); std::ostream& someFunction(); int const* someFunction()) but not to the function name
+    - since there is no explicit name for the return value (like named return values in go), there is no name to which the "*"/"&" can be put (the function name is no name for the return value!)
+    - the return value is more obvious and clear at first sight when the "*"/"&" is put to the type than when it stands near the function name
+    - if you see it like "ReturnType FunctionName" and you substitute "ReturnType" with "int*" you get "int* someFunction"
+    - "*"/"&" before the function name is (at least for me) some kind of confusing and can also confuse beginners (wia mi im 2. Semester)
+    
+operator overloading
+--------------------
+* think about where to put argument list:
+    std::ostream& operator<< (std::ostream &os, DummyWithOstreamOperator const &dummy);
+    vs.
+    std::ostream& operator<<(std::ostream &os, DummyWithOstreamOperator const &dummy);
+    X operator++(int);
+    value_t& operator[](std::size_t idx);
+    
+-> use std::ostream& operator<<(std::ostream &os, DummyWithOstreamOperator const &dummy); because:
+    1. it is default for operator= (e.g. COWVector& operator=(COWVector const&) = default;)
+    2. it is a function declaration and function decls have no space between name and parameter list (operator is in fact a keyword, but the '(' doesn't follow operator but the operator symbol which isn't a keyword)
+    3. almost all overloaded operators I've seen use this form (also cppreference https://en.cppreference.com/w/cpp/language/operators)
+    
+user-defined conversions
+------------------------ 
+//implicit conversion
+operator int() const { return 7; }
+
+// explicit conversion
+explicit operator int*() const { return nullptr; }
+
+inline operator StreamType&() { return fileStream; }
+
+* no space between type and "("
+    - seems to be standard (e.g. https://en.cppreference.com/w/cpp/language/cast_operator)
+    - consistent with overloaded operators because there is also no space between operator symbol and "("
+    - isolated "()" looks strange
+    - type is more or less the function name here and there is no space between function name and "("
+    
+variadic templates
+------------------
+* placement of ellipsis:
+template <typename... Args>
+std::shared_ptr<VarSym> createVarSym(Args&&... args) const {
+	return std::make_shared<VarSym>(std::forward<Args>(args)...);
+}
+
+another example from http://www.cplusplus.com/reference/unordered_map/unordered_map/emplace/:
+template <class... Args>
+pair<iterator, bool> emplace ( Args&&... args );
+
+* reasons:
+    + it is possible to omit the template argument name (Args) and the function parameter name (args)
+      this would result in a strange looking isolated placement of the ellipsis like "template <typename ...>" or "createVarSym(Args&& ...)"
+      see https://en.cppreference.com/w/cpp/language/parameter_pack
+        - template<typename ...Ts> void f(Ts...) {}
+        - template<typename...> struct Tuple {};
+    + it is consistent always at the left identifier and thus easier to remember
+    + logical
+        - "typename..." -> multiple typenames under the template parameter name Args
+        - "Args..." -> unpacking of Args for function parameters -> one can imagine Args substituted by multiple types that are all referenced by the parameter name args
+    + corresponds to the style of https://eli.thegreenplace.net/2014/variadic-templates-in-c/
+   
+miscellaneous:
+--------------
+* put a space between the keyword and the opening parenthesis (like if (), for (), while ())
+* put the opening brace on the same line as the if, for, ...
+    - braces are syntactic trash and do not deserve an own line (this is from stackoverflow)
+    - K&R style
+* do not put a space between function name and opening parenthesis
+    - neither at the function decl (void someFunction(int);)
+    - nor at the function call (printf("a function call");)
+
+* write if - else if - else like
+    if () {
+        ...
+    } else if {
+        ...
+    } else {
+        ...
+    }
+    
+    - to be consistent with Go where this is a must (so I do not need to switch coding style between c++ and go)
+    - braces are syntactic trash and do not deserve an own line (this is from stackoverflow)
+    - like Pawel said: if there doesn't come something after the closing "}", it means that the if ends and there is no following condition related to this if!
+    
+* max line length (120?)
+* sofort nach der '{' in der darauffolgenden Zeile, !ohne Leerzeile dazwischen!, die erste deklaration (bei klassen, funktionen, ?namespaces?, ...)
+    class Foo {
+    public:
+        // erste dekl
+    };
+    
+    void foo() {
+        // erste dekl
+    }
+    
+    namespace foo { -> see section about namespaces!
+    // erste dekl, !keine Einrückung!
+    }
+    
+* think about enums (naming, formatting, closing with ",")
+* regarding formatting -> consider automatic eclipse formatting (how does eclipse do it by default)!!!
+* think about naming of constants
+* think about naming of macros (according to stroustrup all uppercase like MACRO)
+* unit test files use namespace from file to test (e.g. file to test declares namespace PROL16 {} -> test file does a "using namespace PROL16;")
